@@ -1,0 +1,5 @@
+#!/bin/bash
+
+SRC=bootchart-0.9
+
+tar cfj $SRC.tar.bz2 $SRC
