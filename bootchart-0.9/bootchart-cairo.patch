@@ -1,0 +1,1496 @@
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/build.xml bootchart/build.xml
+--- bootchart-clean/build.xml	2005-05-24 16:30:45.000000000 -0400
++++ bootchart/build.xml	2005-08-15 23:30:34.000000000 -0400
+@@ -38,7 +38,7 @@
+ 			debug="${compiler.debug}"
+ 			optimize="${compiler.optimize}"
+ 			deprecation="${compiler.deprecation}"
+-			classpath="${build.home}">
++			classpath="${build.home}:/opt/rendering/share/java/cairo0.9.jar:/opt/rendering/share/java/jg-common0.1.jar">
+ 			<include name="**/*.java"/>
+ 		</javac>
+ 		<!-- compile source files -->
+@@ -48,7 +48,7 @@
+ 			debug="${compiler.debug}"
+ 			optimize="${compiler.optimize}"
+ 			deprecation="${compiler.deprecation}"
+-			classpath="${build.home}">
++			classpath="${build.home}:/opt/rendering/share/java/cairo0.9.jar:/opt/rendering/share/java/jg-common0.1.jar">
+ 			<include name="**/*.java"/>
+ 			<exclude name="**/servlet/**"/>
+ 		</javac>
+@@ -61,6 +61,9 @@
+ 			<fileset dir="${build.home}" includes="**/*.class,**/*.properties,**/*.template"/>
+ 			<fileset dir="${basedir}" includes="svg/**"/>
+ 			<manifest>
++				<attribute name="Class-Path"
++				value="/opt/rendering/share/java/cairo0.9.jar
++				      /opt/rendering/share/java/jg-common0.1.jar"/>
+ 				<attribute name="Built-By" value="${env.USER}"/>
+ 				<attribute name="Manifest-Version" value="1.0"/>
+ 				<attribute name="Main-Class" value="org.bootchart.Main"/>
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/src/org/bootchart/Main.java bootchart/src/org/bootchart/Main.java
+--- bootchart-clean/src/org/bootchart/Main.java	2005-07-05 16:07:03.000000000 -0400
++++ bootchart/src/org/bootchart/Main.java	2005-08-12 21:52:12.000000000 -0400
+@@ -57,6 +57,7 @@
+ import org.bootchart.parser.linux.PsParser;
+ import org.bootchart.renderer.EPSRenderer;
+ import org.bootchart.renderer.PNGRenderer;
++import org.bootchart.renderer.CairoPNGRenderer;
+ import org.bootchart.renderer.Renderer;
+ import org.bootchart.renderer.SVGRenderer;
+ 
+@@ -69,7 +70,7 @@
+ 	
+ 	/** Default image format. */
+ 	private static final String DEFAULT_FORMAT =
+-		Common.isPNGSupported() ? "png" : "svg";
++		Common.isPNGSupported() ? "png" : "cpng";
+ 
+ 	/**
+ 	 * Main.
+@@ -304,6 +305,8 @@
+ 			renderer = new PNGRenderer();
+ 		} else if ("svg".equals(format)) {
+ 			renderer = new SVGRenderer();
++		} else if ("cpng".equals(format)) {
++			renderer = new CairoPNGRenderer();
+ 		} else if ("eps".equals(format)) {
+ 			renderer = new EPSRenderer();
+ 		} else {
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/src/org/bootchart/renderer/CairoPNGRenderer bootchart/src/org/bootchart/renderer/CairoPNGRenderer
+--- bootchart-clean/src/org/bootchart/renderer/CairoPNGRenderer	1969-12-31 19:00:00.000000000 -0500
++++ bootchart/src/org/bootchart/renderer/CairoPNGRenderer	2005-08-12 19:47:30.000000000 -0400
+@@ -0,0 +1,72 @@
++/*
++ * Bootchart -- Boot Process Visualization
++ *
++ * Copyright (C) 2004  Ziga Mahkovec <ziga.mahkovec@klika.si>
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ */
++package org.bootchart.renderer;
++
++import java.awt.image.RenderedImage;
++import java.io.IOException;
++import java.io.OutputStream;
++import java.lang.reflect.Method;
++import java.util.Properties;
++import java.util.logging.Logger;
++
++import org.bootchart.common.BootStats;
++
++
++/**
++ * PNGRenderer renders the boot chart as a PNG image.
++ */
++public class PNGRenderer extends GraphicsRenderer {
++	private static final Logger log = Logger.getLogger(PNGRenderer.class.getName());
++	
++	/*
++	 * inherit javadoc
++	 */
++	public void render(Properties headers, BootStats bootStats, OutputStream os)
++		throws IOException {
++		
++	 	super.render(headers, bootStats, null);
++	 	
++		/*
++		 * Encode PNG image.
++		 */
++		log.fine("Writing image");
++		/*
++		 * Call ImageIO.write(img, "png", os) using the reflection API as
++		 * some free JRE implementations lack the class.
++		 */
++		try {
++			Class imageioClass = Class.forName("javax.imageio.ImageIO");
++			Class[] params =
++				{ RenderedImage.class, String.class, OutputStream.class };
++			Method writeMethod = imageioClass.getMethod("write", params);
++			writeMethod.invoke(null, new Object[]{img, "png", os});
++		} catch (Exception e) {
++			// ImageIO.write() not implemented
++			throw new RuntimeException(e);
++		}
++	}
++	
++	/*
++	 * inherit javadoc
++	 */
++	public String getFileSuffix() {
++		return "png";
++	}
++}
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/src/org/bootchart/renderer/CairoPNGRenderer.java bootchart/src/org/bootchart/renderer/CairoPNGRenderer.java
+--- bootchart-clean/src/org/bootchart/renderer/CairoPNGRenderer.java	1969-12-31 19:00:00.000000000 -0500
++++ bootchart/src/org/bootchart/renderer/CairoPNGRenderer.java	2005-08-26 15:04:16.993480221 -0400
+@@ -0,0 +1,59 @@
++/*
++ * Bootchart -- Boot Process Visualization
++ *
++ * Copyright (C) 2004  Ziga Mahkovec <ziga.mahkovec@klika.si>
++ * Copyright (C) 2005  Red Hat, Inc.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ */
++package org.bootchart.renderer;
++
++import java.io.IOException;
++import java.io.OutputStream;
++import java.util.Properties;
++import java.util.logging.Logger;
++
++import org.bootchart.common.BootStats;
++
++
++/**
++ * PNGRenderer renders the boot chart as a PNG image.
++ */
++public class CairoPNGRenderer extends CairoRenderer {
++	private static final Logger log = Logger.getLogger(PNGRenderer.class.getName());
++	
++	/*
++	 * inherit javadoc
++	 */
++	public void render(Properties headers, BootStats bootStats, OutputStream os)
++		throws IOException {
++		
++	 	super.render(headers, bootStats, null);
++	 	
++		/*
++		 * Encode PNG image.
++		 */
++		log.fine("Writing image");
++
++		surface.writeToPNG(os);
++	}
++	
++	/*
++	 * inherit javadoc
++	 */
++	public String getFileSuffix() {
++		return "png";
++	}
++}
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/src/org/bootchart/renderer/CairoRenderer.java bootchart/src/org/bootchart/renderer/CairoRenderer.java
+--- bootchart-clean/src/org/bootchart/renderer/CairoRenderer.java	1969-12-31 19:00:00.000000000 -0500
++++ bootchart/src/org/bootchart/renderer/CairoRenderer.java	2005-08-26 15:02:49.144246684 -0400
+@@ -0,0 +1,207 @@
++/*
++ * Bootchart -- Boot Process Visualization
++ *
++ * Copyright (C) 2004  Ziga Mahkovec <ziga.mahkovec@klika.si>
++ * Copyright (C) 2005  Red Hat, Inc.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ */
++package org.bootchart.renderer;
++
++import org.freedesktop.cairo.Context;
++import org.freedesktop.cairo.FontExtents;
++import org.freedesktop.cairo.FontWeight;
++import org.freedesktop.cairo.FontSlant;
++import org.freedesktop.cairo.Format;
++import org.freedesktop.cairo.ImageSurface;
++import org.freedesktop.cairo.Point;
++import org.freedesktop.cairo.Rectangle;
++import org.freedesktop.cairo.Surface;
++import org.freedesktop.cairo.TextExtents;
++
++
++/**
++ * ImageRenderer renders the boot chart as a Java 2D
++ * <code>BufferedImage</code>.  Subclasses may then encode the image in
++ * different formats (e.g. PNG or EPS).
++ */
++public abstract class CairoRenderer extends ImageRenderer {
++	protected Surface surface = null;
++	protected Context cr = null;
++
++	private RenderStroke curStroke;
++	
++	protected void setup(int width, int height) {
++		if (cr == null) {
++			// some renderers require custom initialization
++			
++			Format format =
++				allowAlpha ? Format.ARGB32 : Format.RGB24;
++			surface = new ImageSurface(format, width, height);
++			cr = new Context(surface);
++		}
++
++		setStroke(new RenderStroke(1.0f));
++	}
++
++	protected void crop(int x, int y, int width, int height) {
++		if (surface instanceof ImageSurface) {
++			Format format =
++				allowAlpha ? Format.ARGB32 : Format.RGB24;
++			Surface newSurface = new ImageSurface(format, width, height);
++			
++			cr = new Context(newSurface);
++			setStroke(curStroke);
++			
++			cr.setSource(surface, - x, - y);
++			cr.rectangle(new Rectangle(0, 0, width, height));
++			cr.fill();
++			
++			surface = newSurface;
++		}
++	}
++	
++	protected void setColor(int red, int green, int blue, int alpha) {
++		cr.setSourceRGBA(red / 255.0,
++				 green / 255.0,
++				 blue / 255.0,
++				 alpha / 255.0);
++	}
++
++	private boolean strokeIsInteger() {
++		double diff = curStroke.width - Math.floor(curStroke.width);
++
++		return (diff < 0.001);
++	}
++
++	protected void drawRect(int x, int y, int width, int height) {
++		cr.newPath();
++		double diff = curStroke.width - Math.floor(curStroke.width);
++
++		/* Gymnastics so that when we have an integer line width,
++		 * we draw exactly the same pixel-aligned rectangle as we would
++		 * without antialiasing
++		 */
++		if (strokeIsInteger ()) {
++			int s = (int)Math.floor(curStroke.width);
++			double bound_x1 = x - s / 2;
++			double bound_y1 = y - s / 2;
++			double bound_x2 = x + width + (s + 1) / 2;
++			double bound_y2 = y + height + (s + 1) / 2;
++			
++			cr.rectangle(new Rectangle(bound_x1 + curStroke.width / 2.,
++						   bound_y1 + curStroke.width / 2.,
++						   bound_x2 - bound_x1 - curStroke.width,
++						   bound_y2 - bound_y1 - curStroke.width));
++		} else {
++			cr.rectangle(new Rectangle(x, y,
++						   width, height));
++		}
++		cr.stroke();
++	}
++	
++	protected void fillRect(int x, int y, int width, int height) {
++		cr.newPath();
++		cr.rectangle(new Rectangle(x, y, width, height));
++		cr.fill();
++	}
++	
++	protected void fillArc(int x, int y, int width, int height, int startAngle, int arcAngle) {
++		cr.save();
++		cr.translate(x + width / 2., y + height / 2.);
++		cr.scale(width, height);
++		cr.arc(new Point(0., 0.), 0.5,
++		       Math.PI * startAngle / 180., Math.PI * (arcAngle + startAngle) / 180.);
++		cr.restore();
++		cr.fill();
++	}
++	
++	protected void fillPolygon(int xPoints[], int yPoints[], int nPoints) {
++		cr.newPath();
++		if (nPoints == 0)
++			return;
++
++		cr.moveTo(xPoints[0], yPoints[0]);
++		for (int i = 1; i < nPoints; i++) {
++			cr.lineTo(xPoints[i], yPoints[i]);
++		}		
++
++		cr.fill();
++	}
++	
++	protected void drawString(String str, int x, int y) {
++		cr.moveTo(x, y);
++		cr.showText(str);
++	}
++	
++	protected void drawLine(int x1, int y1, int x2, int y2) {
++		double offset;
++		
++		/* This type of magic offset is generally a poor idea, needed
++		 * so that the integer coordinates used by GraphicsRenderer
++		 * give us pixe-aligned lines.
++		 */
++		if (strokeIsInteger ()) {
++			int s = (int)Math.floor(curStroke.width);
++			offset = (s % 2) / 2.;
++		} else {
++			offset = 0;
++		}
++		
++		cr.newPath();
++		cr.moveTo(x1 + offset, y1 + offset);
++		cr.lineTo(x2 + offset, y2 + offset);
++		cr.stroke();
++	}
++
++	protected void setStroke(RenderStroke renderStroke) {
++		curStroke = renderStroke;
++		
++		cr.setLineWidth(renderStroke.width);
++		if (renderStroke.dashed) {
++			int len = renderStroke.dash.length;
++			double dashD[] = new double[len];
++			for (int i = 0; i < len; i++)
++				dashD[i] = renderStroke.dash[i];
++			cr.setDash(dashD, 0);
++		} else {
++		    cr.setDash(new double[0], 0);
++		}
++	}
++
++	protected void setFont(RenderFont font) {
++		FontWeight weight;
++
++		if (font.bold)
++			weight = FontWeight.BOLD;
++		else
++			weight = FontWeight.NORMAL;
++
++		cr.selectFontFace(font.family, FontSlant.NORMAL, weight);
++		cr.setFontSize(font.size);
++	}
++
++	protected int stringWidth(String str) {
++		TextExtents extents = cr.textExtents(str);
++		
++		return (int)(extents.getWidth() + 0.5);
++	}
++	
++	protected int getMaxAscent() {
++		FontExtents extents = cr.fontExtents();
++
++		return (int)(extents.getAscent() + 0.5);
++	}
++}
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/src/org/bootchart/renderer/EPSRenderer.java bootchart/src/org/bootchart/renderer/EPSRenderer.java
+--- bootchart-clean/src/org/bootchart/renderer/EPSRenderer.java	2005-01-20 19:24:19.000000000 -0500
++++ bootchart/src/org/bootchart/renderer/EPSRenderer.java	2005-08-12 19:19:53.000000000 -0400
+@@ -34,7 +34,7 @@
+  * EPSRenderer renders the boot chart as an EPS (encapsulated postscript)
+  * image.
+  */
+-public class EPSRenderer extends ImageRenderer {
++public class EPSRenderer extends GraphicsRenderer {
+ 	private static final Logger log = Logger.getLogger(EPSRenderer.class.getName());
+ 	
+ 	/** Whether to compress EPS output. */
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/src/org/bootchart/renderer/GraphicsRenderer.java bootchart/src/org/bootchart/renderer/GraphicsRenderer.java
+--- bootchart-clean/src/org/bootchart/renderer/GraphicsRenderer.java	1969-12-31 19:00:00.000000000 -0500
++++ bootchart/src/org/bootchart/renderer/GraphicsRenderer.java	2005-08-12 21:49:19.000000000 -0400
+@@ -0,0 +1,148 @@
++/*
++ * Bootchart -- Boot Process Visualization
++ *
++ * Copyright (C) 2004  Ziga Mahkovec <ziga.mahkovec@klika.si>
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License
++ * as published by the Free Software Foundation; either version 2
++ * of the License, or (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
++ */
++package org.bootchart.renderer;
++
++import java.awt.BasicStroke;
++import java.awt.Color;
++import java.awt.Font;
++import java.awt.FontMetrics;
++import java.awt.Graphics;
++import java.awt.Graphics2D;
++import java.awt.RenderingHints;
++import java.awt.Stroke;
++import java.awt.image.BufferedImage;
++import java.util.HashMap;
++import java.util.Map;
++
++
++/**
++ * ImageRenderer renders the boot chart as a Java 2D
++ * <code>BufferedImage</code>.  Subclasses may then encode the image in
++ * different formats (e.g. PNG or EPS).
++ */
++public abstract class GraphicsRenderer extends ImageRenderer {
++	protected Graphics g = null;
++	protected BufferedImage img = null;
++
++	private Font curFont;
++	private FontMetrics curMetrics;
++	
++	protected void setup(int w, int h) {
++		if (g == null) {
++			// some renderers require custom Graphics2D initialization
++			int type =
++				allowAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
++			img = new BufferedImage(w, h, type);
++			g = img.createGraphics();
++		}
++		
++		if (g instanceof Graphics2D) {
++			// set best quality rendering
++			Map renderHints = new HashMap();
++			renderHints.put(RenderingHints.KEY_ANTIALIASING,
++				            RenderingHints.VALUE_ANTIALIAS_ON);
++			renderHints.put(RenderingHints.KEY_COLOR_RENDERING,
++				            RenderingHints.VALUE_COLOR_RENDER_QUALITY);
++			renderHints.put(RenderingHints.KEY_DITHERING,
++	                        RenderingHints.VALUE_DITHER_DISABLE);
++			renderHints.put(RenderingHints.KEY_RENDERING,
++                            RenderingHints.VALUE_RENDER_QUALITY);
++			renderHints.put(RenderingHints.KEY_TEXT_ANTIALIASING,
++                            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
++			((Graphics2D)g).addRenderingHints(renderHints);
++		}
++	}
++	
++	protected void crop(int x, int y, int width, int height) {
++		if (img != null) {
++			img = img.getSubimage(x, y, width, height);
++		}
++	}
++
++	protected void setColor(int red, int green, int blue, int alpha) {
++		g.setColor(new Color(red, green, blue, alpha));
++	}
++
++	protected void drawRect(int x, int y, int width, int height) {
++		g.drawRect(x, y, width, height);
++	}
++	
++	protected void fillRect(int x, int y, int width, int height) {
++		g.fillRect(x, y, width, height);
++	}
++	
++	protected void fillArc(int x, int y, int width, int height, int startAngle, int arcAngle) {
++		g.fillArc(x, y, width, height, startAngle, arcAngle);
++	}
++	
++	protected void fillPolygon(int xPoints[], int yPoints[], int nPoints) {
++		g.fillPolygon(xPoints, yPoints, nPoints);
++	}
++	
++	protected void drawString(String str, int x, int y) {
++		g.drawString(str, x, y);
++	}
++	
++	protected void drawLine(int x1, int y1, int x2, int y2) {
++		g.drawLine(x1, y1, x2, y2);
++	}
++
++	protected void setStroke(RenderStroke renderStroke) {
++		if (g instanceof Graphics2D) {
++			Stroke stroke;
++			
++			if (renderStroke.dashed)
++				stroke = new BasicStroke(renderStroke.width, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 
++							 10.0f, renderStroke.dash, 0.0f);
++			else
++				stroke = new BasicStroke(renderStroke.width);
++
++			((Graphics2D)g).setStroke(stroke);
++		}
++	}
++
++	protected void setFont(RenderFont font) {
++		int style;
++
++		if (font.bold)
++			style = Font.BOLD;
++		else
++			style = Font.PLAIN;
++
++		curFont = new Font(font.family, style, font.size);
++		curMetrics = null;
++		
++		g.setFont(curFont);
++	}
++
++	protected int stringWidth(String str) {
++		if (curMetrics == null)
++			curMetrics = g.getFontMetrics(curFont);
++
++		return curMetrics.stringWidth(str);
++	}
++	
++	protected int getMaxAscent() {
++		if (curMetrics == null)
++			curMetrics = g.getFontMetrics(curFont);
++
++		return curMetrics.getMaxAscent();
++	}
++}
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/src/org/bootchart/renderer/ImageRenderer.java bootchart/src/org/bootchart/renderer/ImageRenderer.java
+--- bootchart-clean/src/org/bootchart/renderer/ImageRenderer.java	2005-07-04 08:27:19.000000000 -0400
++++ bootchart/src/org/bootchart/renderer/ImageRenderer.java	2005-08-26 13:43:29.016606183 -0400
+@@ -19,26 +19,13 @@
+  */
+ package org.bootchart.renderer;
+ 
+-import java.awt.BasicStroke;
+-import java.awt.Color;
+-import java.awt.Font;
+-import java.awt.FontMetrics;
+-import java.awt.Graphics;
+-import java.awt.Graphics2D;
+-import java.awt.Point;
+-import java.awt.Rectangle;
+-import java.awt.RenderingHints;
+-import java.awt.Stroke;
+-import java.awt.image.BufferedImage;
+ import java.io.IOException;
+ import java.io.OutputStream;
+ import java.text.DateFormat;
+ import java.text.SimpleDateFormat;
+ import java.util.Date;
+-import java.util.HashMap;
+ import java.util.Iterator;
+ import java.util.List;
+-import java.util.Map;
+ import java.util.Properties;
+ import java.util.logging.Logger;
+ 
+@@ -62,73 +49,149 @@
+  * different formats (e.g. PNG or EPS).
+  */
+ public abstract class ImageRenderer extends Renderer {
++	public static class RenderFont {
++		public RenderFont(String family_, boolean bold_, int size_) {
++			family = family_;
++			bold = bold_;
++			size = size_;
++		}
++			
++		public String family;
++		public boolean bold;
++		public int size;
++
++		public int getSize() { return size; }
++	}
++
++	public static class RenderColor {
++		public RenderColor(int red_, int green_, int blue_, int alpha_) {
++			red = red_;
++			green = green_;
++			blue = blue_;
++			alpha = alpha_;
++		}
++
++		public int getRed() { return red; }
++		public int getGreen() { return green; }
++		public int getBlue() { return blue; }
++		public int getAlpha() { return alpha; }
++		
++		private int red;
++		private int green;
++		private int blue;
++		private int alpha;
++	}
++
++	public static class RenderPoint {
++		public RenderPoint(int x_, int y_) {
++			x = x_;
++			y = y_;
++		}
++
++		public int x;
++		public int y;
++	}
++
++	public static class RenderRectangle {
++		public RenderRectangle(int x_, int y_, int width_, int height_) {
++			x = x_;
++			y = y_;
++			width = width_;
++			height = height_;
++		}
++
++		public int x;
++		public int y;
++		public int width;
++		public int height;
++	}
++
++	public static class RenderStroke {
++		public RenderStroke(float width_) {
++			width = width_;
++			dashed = false;
++		}
++		public RenderStroke(float width_, float[] dash_) {
++			width = width_;
++			dash = dash_;
++			dashed = true;
++		}
++
++		float width;
++		public boolean dashed;
++		float[] dash;
++	}
++
+ 	private static String fontFamily = "SansSerif";
+ 	
+ 	private static final Logger log = Logger.getLogger(ImageRenderer.class.getName());
++	/** White. */
++	private static final RenderColor WHITE_COLOR = new RenderColor(255, 255, 255, 255);
+ 	/** Process tree background color. */
+-	private static final Color BACK_COLOR = new Color(255, 255, 255, 255);
++	private static final RenderColor BACK_COLOR = new RenderColor(255, 255, 255, 255);
+ 	/** Process tree border color. */
+-	private static final Color BORDER_COLOR = new Color(160, 160, 160, 255);
++	private static final RenderColor BORDER_COLOR = new RenderColor(160, 160, 160, 255);
+ 	/** Second tick line color. */
+-	private static final Color TICK_COLOR = new Color(235, 235, 235, 255);
++	private static final RenderColor TICK_COLOR = new RenderColor(235, 235, 235, 255);
+ 	/** 5-second tick line color. */
+-	private static final Color TICK_COLOR_BOLD = new Color(220, 220, 220, 255);
++	private static final RenderColor TICK_COLOR_BOLD = new RenderColor(220, 220, 220, 255);
+ 	/** Text color. */
+-	private static final Color TEXT_COLOR = new Color(0, 0, 0, 255);
++	private static final RenderColor TEXT_COLOR = new RenderColor(0, 0, 0, 255);
+ 	
+ 	/** Title text font. */
+-	private static final Font TITLE_FONT = new Font(fontFamily, Font.BOLD, 18);
++	private static final RenderFont TITLE_FONT = new RenderFont(fontFamily, true, 18);
+ 	/** Default text font. */
+-	private static final Font TEXT_FONT = new Font(fontFamily, Font.PLAIN, 12);
++	private static final RenderFont TEXT_FONT = new RenderFont(fontFamily, false, 12);
+ 	/** Axis label font. */
+-	private static final Font AXIS_FONT = new Font(fontFamily, Font.PLAIN, 11);
++	private static final RenderFont AXIS_FONT = new RenderFont(fontFamily, false, 11);
+ 	/** Legend font. */
+-	private static final Font LEGEND_FONT = new Font(fontFamily, Font.PLAIN, 12);
++	private static final RenderFont LEGEND_FONT = new RenderFont(fontFamily, false, 12);
+ 	
+ 	/** CPU load chart color. */
+-	private static final Color CPU_COLOR = new Color(102, 140, 178, 255);
++	private static final RenderColor CPU_COLOR = new RenderColor(102, 140, 178, 255);
+ 	/** IO wait chart color. */
+-	private static final Color IO_COLOR = new Color(194, 122, 122, 128);
++	private static final RenderColor IO_COLOR = new RenderColor(194, 122, 122, 128);
+ 	/** Disk throughput color. */
+-	private static final Color DISK_TPUT_COLOR = new Color(50, 180, 50, 255);
++	private static final RenderColor DISK_TPUT_COLOR = new RenderColor(50, 180, 50, 255);
+ 	/** CPU load chart color. */
+-	private static final Color FILE_OPEN_COLOR = new Color(50, 180, 180, 255);
++	private static final RenderColor FILE_OPEN_COLOR = new RenderColor(50, 180, 180, 255);
+ 	
+ 	/** Process border color. */
+-	private static final Color PROC_BORDER_COLOR = new Color(180, 180, 180, 255);
++	private static final RenderColor PROC_BORDER_COLOR = new RenderColor(180, 180, 180, 255);
+ 	/** Waiting process color. */
+-	private static final Color PROC_COLOR_D = new Color(194, 122, 122, 64);
++	private static final RenderColor PROC_COLOR_D = new RenderColor(194, 122, 122, 64);
+ 	/** Running process color. */
+-	private static final Color PROC_COLOR_R = CPU_COLOR;
++	private static final RenderColor PROC_COLOR_R = CPU_COLOR;
+ 	/** Sleeping process color. */
+-	private static final Color PROC_COLOR_S = new Color(240, 240, 240, 255);
++	private static final RenderColor PROC_COLOR_S = new RenderColor(240, 240, 240, 255);
+ 	/** Stopped process color. */
+-	private static final Color PROC_COLOR_T = new Color(240, 128, 128, 255);
++	private static final RenderColor PROC_COLOR_T = new RenderColor(240, 128, 128, 255);
+ 	/** Zombie process color. */
+-	private static final Color PROC_COLOR_Z = new Color(180, 180, 180, 255);
++	private static final RenderColor PROC_COLOR_Z = new RenderColor(180, 180, 180, 255);
+ 
+ 	/** Process label color. */
+-	private static final Color PROC_TEXT_COLOR = new Color(48, 48, 48, 255);
++	private static final RenderColor PROC_TEXT_COLOR = new RenderColor(48, 48, 48, 255);
+ 	/** Process label font. */
+-	private static final Font PROC_TEXT_FONT = new Font(fontFamily, Font.PLAIN, 12);
++	private static final RenderFont PROC_TEXT_FONT = new RenderFont(fontFamily, false, 12);
+ 
+ 	/** Signature color. */
+-	private static final Color SIG_COLOR = new Color(0, 0, 0, 80);
++	private static final RenderColor SIG_COLOR = new RenderColor(0, 0, 0, 80);
+ 	/** Signature font. */
+-	private static final Font SIG_FONT = new Font(fontFamily, Font.BOLD, 14);
++	private static final RenderFont SIG_FONT = new RenderFont(fontFamily, true, 14);
+ 	/** Signature text. */
+ 	//private static final String SIGNATURE = "www.bootchart.org";
+ 	private static final String SIGNATURE = "";
+ 	
++	/** Normal stroke */
++	private static final RenderStroke SIMPLE_STROKE = new RenderStroke(1.0f);
++
+ 	/** Disk chart line stoke. */
+-	private static final Stroke DISK_STROKE = new BasicStroke(1.5f);
++	private static final RenderStroke DISK_STROKE = new RenderStroke(1.5f);
+ 	
+ 	/** Process dependency line color. */
+-	private static final Color DEP_COLOR = new Color(192, 192, 192, 255);
++	private static final RenderColor DEP_COLOR = new RenderColor(192, 192, 192, 255);
+ 	/** Process dependency line stroke. */
+-	private static final Stroke DEP_STROKE =
+-		new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 
+-						10.0f, new float[]{2.0f, 2.0f}, 0.0f);
++	private static final RenderStroke DEP_STROKE = new RenderStroke(1.0f, new float[]{2.0f, 2.0f});
+ 	
+ 	/** Boot duration time format. */
+ 	private static final DateFormat BOOT_TIME_FORMAT =
+@@ -140,8 +203,6 @@
+ 	private static final int MAX_IMG_DIM = 4096;
+ 	
+ 	
+-	protected Graphics g = null;
+-	protected BufferedImage img = null;
+ 	/**
+ 	 * Whether to allow usage of transparency.  Certain renderers (e.g. EPS)
+ 	 * will produce better results if the colors aren't transparent.
+@@ -186,34 +247,13 @@
+ 		
+ 		w = Math.min(w, MAX_IMG_DIM);
+ 		h = Math.min(h, MAX_IMG_DIM);
+-		
++
++		// Create the image now that we have the size
+ 		log.fine("Creating image: (" + w + ", " + h + ")");
+-		if (g == null) {
+-			// some renderers require custom Graphics2D initialization
+-			int type =
+-				allowAlpha ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+-			img = new BufferedImage(Math.max(w, MIN_IMG_W), h, type);
+-			g = img.createGraphics();
+-		}
+-		
+-		if (g instanceof Graphics2D) {
+-			// set best quality rendering
+-			Map renderHints = new HashMap();
+-			renderHints.put(RenderingHints.KEY_ANTIALIASING,
+-				            RenderingHints.VALUE_ANTIALIAS_ON);
+-			renderHints.put(RenderingHints.KEY_COLOR_RENDERING,
+-				            RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+-			renderHints.put(RenderingHints.KEY_DITHERING,
+-	                        RenderingHints.VALUE_DITHER_DISABLE);
+-			renderHints.put(RenderingHints.KEY_RENDERING,
+-                            RenderingHints.VALUE_RENDER_QUALITY);
+-			renderHints.put(RenderingHints.KEY_TEXT_ANTIALIASING,
+-                            RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+-			((Graphics2D)g).addRenderingHints(renderHints);
+-		}
++		setup(Math.max(w, MIN_IMG_W), h);
+ 
+-		setColor(g, Color.WHITE);
+-		g.fillRect(0, 0, Math.max(w, MIN_IMG_W), h);
++		setColor(WHITE_COLOR);
++		fillRect(0, 0, Math.max(w, MIN_IMG_W), h);
+ 
+ 		// draw the title and headers
+ 		drawHeader(headers, offX, procTree.duration);
+@@ -224,25 +264,25 @@
+ 		int rectH = h - 2 * offY - headerH;
+ 		
+ 		// render bar legend
+-		g.setFont(LEGEND_FONT);
++		setFont(LEGEND_FONT);
+ 		int legY = rectY - 2*barH - 6*offY;
+ 		int legX = offX;
+ 		int legS = 10;
+ 		if (hasSamples(cpuStats, CPUSample.class)) {
+ 			String cpuLabel = "CPU (user+sys)";
+-			setColor(g, CPU_COLOR);
+-			g.fillRect(legX, legY - legS, legS, legS);
+-			setColor(g, PROC_BORDER_COLOR);
+-			g.drawRect(legX, legY - legS, legS, legS);
+-			setColor(g, TEXT_COLOR);
+-			g.drawString(cpuLabel, legX + legS + 5, legY);
++			setColor(CPU_COLOR);
++			fillRect(legX, legY - legS, legS, legS);
++			setColor(PROC_BORDER_COLOR);
++			drawRect(legX, legY - legS, legS, legS);
++			setColor(TEXT_COLOR);
++			drawString(cpuLabel, legX + legS + 5, legY);
+ 			legX += 120;
+-			setColor(g, IO_COLOR);
+-			g.fillRect(legX, legY - legS, legS, legS);
+-			setColor(g, PROC_BORDER_COLOR);
+-			g.drawRect(legX, legY - legS, legS, legS);
+-			setColor(g, TEXT_COLOR);
+-			g.drawString("I/O (wait)", legX + legS + 5, legY);
++			setColor(IO_COLOR);
++			fillRect(legX, legY - legS, legS, legS);
++			setColor(PROC_BORDER_COLOR);
++			drawRect(legX, legY - legS, legS, legS);
++			setColor(TEXT_COLOR);
++			drawString("I/O (wait)", legX + legS + 5, legY);
+ 			legX += 120;
+ 		}
+ 		
+@@ -250,29 +290,29 @@
+ 		if (hasSamples(diskStats, DiskTPutSample.class)) {
+ 			legY = rectY - barH - 4*offY;
+ 			legX = offX;
+-			setColor(g, DISK_TPUT_COLOR);
+-			g.fillRect(legX, legY - legS/2, legS + 1, 3);
+-			g.fillArc(legX + legS/2 - 2, legY - legS/2 - 1, 5, 5, 0, 360);
+-			setColor(g, TEXT_COLOR);
+-			g.drawString("Disk throughput", legX + legS + 5, legY);
++			setColor(DISK_TPUT_COLOR);
++			fillRect(legX, legY - legS/2, legS + 1, 3);
++			fillArc(legX + legS/2 - 2, legY - legS/2 - 1, 5, 5, 0, 360);
++			setColor(TEXT_COLOR);
++			drawString("Disk throughput", legX + legS + 5, legY);
+ 			legX += 120;
+ 		}
+ 		if (hasSamples(diskStats, DiskUtilSample.class)) {
+-			setColor(g, IO_COLOR);
+-			g.fillRect(legX, legY - legS, legS, legS);
+-			setColor(g, PROC_BORDER_COLOR);
+-			g.drawRect(legX, legY - legS, legS, legS);
+-			setColor(g, TEXT_COLOR);
+-			g.drawString("Disk utilization", legX + legS + 5, legY);
++			setColor(IO_COLOR);
++			fillRect(legX, legY - legS, legS, legS);
++			setColor(PROC_BORDER_COLOR);
++			drawRect(legX, legY - legS, legS, legS);
++			setColor(TEXT_COLOR);
++			drawString("Disk utilization", legX + legS + 5, legY);
+ 			legX += 120;
+ 		}
+ 		if (hasSamples(diskStats, FileOpenSample.class)) {
+-			setColor(g, FILE_OPEN_COLOR);
+-			g.fillRect(legX, legY - legS/2, legS + 1, 3);
+-			g.fillArc(legX + legS/2 - 2, legY - legS/2 - 1, 5, 5, 0, 360);
+-			setColor(g, PROC_BORDER_COLOR);
+-			setColor(g, TEXT_COLOR);
+-			g.drawString("Files opened", legX + legS + 5, legY);
++			setColor(FILE_OPEN_COLOR);
++			fillRect(legX, legY - legS/2, legS + 1, 3);
++			fillArc(legX + legS/2 - 2, legY - legS/2 - 1, 5, 5, 0, 360);
++			setColor(PROC_BORDER_COLOR);
++			setColor(TEXT_COLOR);
++			drawString("Files opened", legX + legS + 5, legY);
+ 			legX += 120;
+ 		}
+ 		int maxLegX = legX;
+@@ -281,62 +321,62 @@
+ 		legY = rectY - 17;
+ 		legX = offX;
+ 		String procR = "Running (%cpu)";
+-		setColor(g, PROC_COLOR_R);
+-		g.fillRect(legX, legY - legS, legS, legS);
+-		setColor(g, PROC_BORDER_COLOR);
+-		g.drawRect(legX, legY - legS, legS, legS);
+-		setColor(g, TEXT_COLOR);
+-		g.drawString(procR, legX + legS + 5, legY);
++		setColor(PROC_COLOR_R);
++		fillRect(legX, legY - legS, legS, legS);
++		setColor(PROC_BORDER_COLOR);
++		drawRect(legX, legY - legS, legS, legS);
++		setColor(TEXT_COLOR);
++		drawString(procR, legX + legS + 5, legY);
+ 		legX += 120;
+ 		
+ 		String procD = "Unint.sleep (I/O)";
+-		setColor(g, TEXT_COLOR);
+-		g.drawString(procD, legX + legS + 5, legY);
+-		setColor(g, PROC_COLOR_D);
+-		g.fillRect(legX, legY - legS, legS, legS);
+-		setColor(g, PROC_BORDER_COLOR);
+-		g.drawRect(legX, legY - legS, legS, legS);
++		setColor(TEXT_COLOR);
++		drawString(procD, legX + legS + 5, legY);
++		setColor(PROC_COLOR_D);
++		fillRect(legX, legY - legS, legS, legS);
++		setColor(PROC_BORDER_COLOR);
++		drawRect(legX, legY - legS, legS, legS);
+ 		legX += 120;
+ 		
+ 		String procS = "Sleeping";
+-		setColor(g, PROC_COLOR_S);
+-		g.fillRect(legX, legY - legS, legS, legS);
+-		setColor(g, PROC_BORDER_COLOR);
+-		g.drawRect(legX, legY - legS, legS, legS);
+-		setColor(g, TEXT_COLOR);
+-		g.drawString(procS, legX + legS + 5, legY);
++		setColor(PROC_COLOR_S);
++		fillRect(legX, legY - legS, legS, legS);
++		setColor(PROC_BORDER_COLOR);
++		drawRect(legX, legY - legS, legS, legS);
++		setColor(TEXT_COLOR);
++		drawString(procS, legX + legS + 5, legY);
+ 		legX += 120;
+ 		
+ 		String procZ = "Zombie";
+-		setColor(g, PROC_COLOR_Z);
+-		g.fillRect(legX, legY - legS, legS, legS);
+-		setColor(g, PROC_BORDER_COLOR);
+-		g.drawRect(legX, legY - legS, legS, legS);
+-		setColor(g, TEXT_COLOR);
+-		g.drawString(procZ, legX + legS + 5, legY);
+-		legX += g.getFontMetrics(LEGEND_FONT).stringWidth(procZ) + offX;
++		setColor(PROC_COLOR_Z);
++		fillRect(legX, legY - legS, legS, legS);
++		setColor(PROC_BORDER_COLOR);
++		drawRect(legX, legY - legS, legS, legS);
++		setColor(TEXT_COLOR);
++		drawString(procZ, legX + legS + 5, legY);
++		legX += stringWidth(procZ) + offX;
+ 		legX += 120;
+ 
+ 		// render I/O wait
+ 		int barY = rectY - 4*offY - barH - offX - 5;
+-		setColor(g, BORDER_COLOR);
+-		g.drawRect(rectX, barY - barH, rectW, barH);
++		setColor(BORDER_COLOR);
++		drawRect(rectX, barY - barH, rectW, barH);
+ 		for (int i = 0; i <= rectW; i += secW) {
+ 			if ((i / secW) % 5 == 0) {
+-				setColor(g, TICK_COLOR_BOLD);
++				setColor(TICK_COLOR_BOLD);
+ 			} else {
+-				setColor(g, TICK_COLOR);
++				setColor(TICK_COLOR);
+ 			}
+-			g.drawLine(rectX + i, barY - barH, rectX + i, barY);
++			drawLine(rectX + i, barY - barH, rectX + i, barY);
+ 		}
+ 		
+ 		if (cpuStats != null) {
+-			Point lastPoint = null;
++			RenderPoint lastPoint = null;
+ 			int[] xPoints = new int[cpuStats.getSamples().size() + 2];
+ 			int[] yPoints = new int[cpuStats.getSamples().size() + 2];
+ 			int pi = 0;
+ 	
+-			setColor(g, IO_COLOR);
++			setColor(IO_COLOR);
+ 			lastPoint = null;
+ 			for (Iterator i = cpuStats.getSamples().iterator(); i.hasNext();) {
+ 				CPUSample sample = (CPUSample)i.next();
+@@ -349,9 +389,9 @@
+ 				}
+ 				int posY = barY - (int) ((sample.user + sample.sys + sample.io) * barH);
+ 				if (lastPoint != null) {
+-					g.drawLine(lastPoint.x, lastPoint.y, posX, posY);
++					drawLine(lastPoint.x, lastPoint.y, posX, posY);
+ 				}
+-				lastPoint = new Point(posX, posY);
++				lastPoint = new RenderPoint(posX, posY);
+ 				xPoints[pi] = posX;
+ 				;
+ 				yPoints[pi] = posY;
+@@ -363,10 +403,10 @@
+ 			xPoints[pi] = xPoints[0];
+ 			yPoints[pi] = barY;
+ 			pi++;
+-			g.fillPolygon(xPoints, yPoints, pi);
++			fillPolygon(xPoints, yPoints, pi);
+ 	
+ 			// render CPU load
+-			setColor(g, CPU_COLOR);
++			setColor(CPU_COLOR);
+ 			lastPoint = null;
+ 			pi = 0;
+ 	
+@@ -381,9 +421,9 @@
+ 				}
+ 				int posY = barY - (int) ((sample.user + sample.sys) * barH);
+ 				if (lastPoint != null) {
+-					g.drawLine(lastPoint.x, lastPoint.y, posX, posY);
++					drawLine(lastPoint.x, lastPoint.y, posX, posY);
+ 				}
+-				lastPoint = new Point(posX, posY);
++				lastPoint = new RenderPoint(posX, posY);
+ 				xPoints[pi] = posX;
+ 				yPoints[pi] = posY;
+ 				pi++;
+@@ -394,29 +434,29 @@
+ 			xPoints[pi] = xPoints[0];
+ 			yPoints[pi] = barY;
+ 			pi++;
+-			g.fillPolygon(xPoints, yPoints, pi);
++			fillPolygon(xPoints, yPoints, pi);
+ 		}
+ 		
+ 		
+ 		if (diskStats != null) {
+-			Point lastPoint = null;
++			RenderPoint lastPoint = null;
+ 			int[] xPoints = new int[diskStats.getSamples().size() + 2];
+ 			int[] yPoints = new int[diskStats.getSamples().size() + 2];
+ 			int pi = 0;
+ 			
+ 	  		// render I/O utilization
+ 			barY = rectY - 2*offY - offY - 5;
+-			setColor(g, BORDER_COLOR);
+-			g.drawRect(rectX, barY - barH, rectW, barH);
++			setColor(BORDER_COLOR);
++			drawRect(rectX, barY - barH, rectW, barH);
+ 			for (int i = 0; i <= rectW; i += secW) {
+ 				if ((i / secW) % 5 == 0) {
+-					setColor(g, TICK_COLOR_BOLD);
++					setColor(TICK_COLOR_BOLD);
+ 				} else {
+-					setColor(g, TICK_COLOR);
++					setColor(TICK_COLOR);
+ 				}
+-				g.drawLine(rectX + i, barY - barH, rectX + i, barY);
++				drawLine(rectX + i, barY - barH, rectX + i, barY);
+ 			}
+-			setColor(g, IO_COLOR);
++			setColor(IO_COLOR);
+ 			lastPoint = null;
+ 			
+ 			for (Iterator i=diskStats.getSamples().iterator(); i.hasNext();) {
+@@ -440,9 +480,9 @@
+ 				}
+ 				int posY = barY - (int)(sample.util * barH);
+ 				if (lastPoint != null) {
+-					g.drawLine(lastPoint.x, lastPoint.y, posX, posY);
++					drawLine(lastPoint.x, lastPoint.y, posX, posY);
+ 				}
+-				lastPoint = new Point(posX, posY);
++				lastPoint = new RenderPoint(posX, posY);
+ 				xPoints[pi] = posX;
+ 				yPoints[pi] = posY;
+ 				pi++;
+@@ -453,14 +493,13 @@
+ 			xPoints[pi] = xPoints[0];
+ 			yPoints[pi] = barY;
+ 			pi++;
+-			g.fillPolygon(xPoints, yPoints, pi);
++			fillPolygon(xPoints, yPoints, pi);
+ 	
+-			if (g instanceof Graphics2D) {
+-				((Graphics2D)g).setStroke(DISK_STROKE);
+-			}
++			setStroke(DISK_STROKE);
++			
+ 			// render disk throughput
+ 			lastPoint = null;
+-			setColor(g, DISK_TPUT_COLOR);
++			setColor(DISK_TPUT_COLOR);
+ 			double maxTPut = ProcDiskStatParser.getMaxDiskTPut(diskStats.getSamples());
+ 			for (Iterator i = diskStats.getSamples().iterator(); i.hasNext();) {
+ 				Sample s = (Sample)i.next();
+@@ -484,11 +523,11 @@
+ 				double tput = (sample.read + sample.write) / maxTPut;
+ 				int posY = barY - (int) (tput * barH);
+ 				if (lastPoint != null) {
+-					g.drawLine(lastPoint.x, lastPoint.y, posX, posY);
++					drawLine(lastPoint.x, lastPoint.y, posX, posY);
+ 				}
+-				lastPoint = new Point(posX, posY);
++				lastPoint = new RenderPoint(posX, posY);
+ 				//int r = 3;
+-				//g.fillArc(posX - r/2, posY - r/2, r, r, 0, 360);
++				//fillArc(posX - r/2, posY - r/2, r, r, 0, 360);
+ 			}
+ 			for (Iterator i=diskStats.getSamples().iterator(); i.hasNext(); ) {
+ 				Sample s = (Sample)i.next();
+@@ -510,15 +549,15 @@
+ 						posX += 30;
+ 					}
+ 					String label = (int)Math.round((sample.read + sample.write) / 1024.0) + " MB/s";
+-					setColor(g, opaque(DISK_TPUT_COLOR));
+-					g.drawString(label, posX - 20, posY - 3);
++					setColor(opaque(DISK_TPUT_COLOR));
++					drawString(label, posX - 20, posY - 3);
+ 					break;
+ 				}
+ 			}
+ 			
+ 			// render file opens
+ 			lastPoint = null;
+-			setColor(g, FILE_OPEN_COLOR);
++			setColor(FILE_OPEN_COLOR);
+ 			int maxFiles = FileOpenSample.getMaxFileOpens(diskStats.getSamples());
+ 			for (Iterator i = diskStats.getSamples().iterator(); i.hasNext();) {
+ 				Sample s = (Sample)i.next();
+@@ -542,11 +581,11 @@
+ 				double fopenRatio = (double)sample.fileOpens / maxFiles;
+ 				int posY = barY - (int) (fopenRatio * barH);
+ 				if (lastPoint != null) {
+-					g.drawLine(lastPoint.x, lastPoint.y, posX, posY);
++					drawLine(lastPoint.x, lastPoint.y, posX, posY);
+ 				}
+-				lastPoint = new Point(posX, posY);
++				lastPoint = new RenderPoint(posX, posY);
+ 				//int r = 3;
+-				//g.fillArc(posX - r/2, posY - r/2, r, r, 0, 360);
++				//fillArc(posX - r/2, posY - r/2, r, r, 0, 360);
+ 			}
+ 			for (Iterator i=diskStats.getSamples().iterator(); i.hasNext(); ) {
+ 				Sample s = (Sample)i.next();
+@@ -568,103 +607,107 @@
+ 						posX += 30;
+ 					}
+ 					String label = sample.fileOpens + "/s";
+-					setColor(g, opaque(FILE_OPEN_COLOR));
+-					g.drawString(label, posX - 15, posY - 3);
++					setColor(opaque(FILE_OPEN_COLOR));
++					drawString(label, posX - 15, posY - 3);
+ 					break;
+ 				}
+ 			}
+ 			
+-			if (g instanceof Graphics2D) {
+-				((Graphics2D)g).setStroke(new BasicStroke());
+-			}
++			setStroke(SIMPLE_STROKE);
+ 		}
+ 
+ 		// render processes
+-		setColor(g, BACK_COLOR);
+-		g.fillRect(rectX, rectY, rectW, rectH);
++		setColor(BACK_COLOR);
++		fillRect(rectX, rectY, rectW, rectH);
+ 
+ 		// draw process tree second ticks
+-		g.setFont(AXIS_FONT);
+-		FontMetrics fm = g.getFontMetrics(TEXT_FONT);
++		setFont(AXIS_FONT);
+ 		for (int i = 0; i <= rectW; i += secW) {
+-			setColor(g, TICK_COLOR);
+-			g.drawLine(rectX + i, rectY, rectX + i, rectY + rectH);
++			setColor(TICK_COLOR);
++			drawLine(rectX + i, rectY, rectX + i, rectY + rectH);
+ 			if ((i / secW) % 5 == 0) {
+-				setColor(g, TICK_COLOR_BOLD);
+-				g.drawLine(rectX + i, rectY, rectX + i, rectY + rectH);
+-				setColor(g, TEXT_COLOR);
++				setColor(TICK_COLOR_BOLD);
++				drawLine(rectX + i, rectY, rectX + i, rectY + rectH);
++				setColor(TEXT_COLOR);
+ 				String label = (i / secW) + "s";
+-				g.drawString(label, rectX + i - fm.stringWidth(label) / 2,
++				drawString(label, rectX + i - stringWidth(label) / 2,
+ 					rectY - 2);
+ 			}
+ 		}
+ 
+ 		/*
+ 		// draw process tree lines
+-		setColor(g, TICK_COLOR);
++		setColor(TICK_COLOR);
+ 		for (int i = 0; i <= rectH; i += procH) {
+-			g.drawLine(rectX, rectY + i, rectX + rectW, rectY + i);
++			drawLine(rectX, rectY + i, rectX + rectW, rectY + i);
+ 		}
+ 		*/
+ 		
+-		g.setFont(PROC_TEXT_FONT);
++		setFont(PROC_TEXT_FONT);
+ 		if (procTree.processTree != null) {
+ 			drawProcessList(procTree.processTree, -1, -1, procTree,
+-				rectY, procH, new Rectangle(rectX, rectY, rectW, rectH));
++				rectY, procH, new RenderRectangle(rectX, rectY, rectW, rectH));
+ 		}
+ 
+-		setColor(g, BORDER_COLOR);
+-		g.drawRect(rectX, rectY, rectW, rectH);
++		setColor(BORDER_COLOR);
++		drawRect(rectX, rectY, rectW, rectH);
+ 		
+-		setColor(g, SIG_COLOR);
+-		g.setFont(SIG_FONT);
+-		g.drawString(SIGNATURE, offX + 5, h - offY - 5);
++		setColor(SIG_COLOR);
++		setFont(SIG_FONT);
++		drawString(SIGNATURE, offX + 5, h - offY - 5);
+ 		
+ 		// crop image
+ 		String title = headers.getProperty("title");
+ 		if (title == null) {
+ 			title = "";
+ 		}
+-		int titleW = g.getFontMetrics(TITLE_FONT).stringWidth(title) + 2*offX;
+-		if (img != null && w < MIN_IMG_W) {
++		setFont(TITLE_FONT);
++		int titleW = stringWidth(title) + 2*offX;
++		if (w < MIN_IMG_W) {
+ 			log.fine("Cropping image");
+-			img = img.getSubimage(0, 0, Math.max(w, titleW), h);
++			crop(0, 0, Math.max(w, titleW), h);
+ 		}
+ 	}
+ 	
++	protected abstract void setup(int width, int height);
++
++	protected void crop(int x, int y, int width, int height) {
++		// Do nothing by default
++	}
++
+ 	private void drawHeader(Properties headers, int offX, long duration) {
+-		setColor(g, TEXT_COLOR);
+-		g.setFont(TITLE_FONT);
+-		int headerY = g.getFontMetrics(TITLE_FONT).getMaxAscent() + 2;
++		setColor(TEXT_COLOR);
++		setFont(TITLE_FONT);
++		int headerY = getMaxAscent() + 2;
+ 		if (headers != null && headers.getProperty("title") != null) {
+-			g.drawString(headers.getProperty("title"), offX, headerY);
++			drawString(headers.getProperty("title"), offX, headerY);
+ 		}
+-		g.setFont(TEXT_FONT);
++		setFont(TEXT_FONT);
+ 		headerY += 2;
+ 		int hoff = 1;
+ 		if (headers != null) {
+ 			String uname = "uname: " + headers.getProperty("system.uname", "");
+-			g.drawString(uname, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
++			drawString(uname, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
+ 			String rel = "release: " + headers.getProperty("system.release", "");
+-			g.drawString(rel, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
++			drawString(rel, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
+ 			String cpu = "CPU: " + headers.getProperty("system.cpu", "");
+ 			cpu = cpu.replaceFirst("model name\\s*:\\s*", "");
+-			g.drawString(cpu, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
++			drawString(cpu, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
+ 			if (headers.getProperty("profile.process") != null) {
+ 				String app = "application: " + headers.getProperty("profile.process", "");
+-				g.drawString(app, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
++				drawString(app, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
+ 			} else {
+ 				String kopt = "kernel options: " + headers.getProperty("system.kernel.options", "");
+-				g.drawString(kopt, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
++				drawString(kopt, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
+ 			}
+ 		}
+ 		Date dur = new Date(Math.round(duration / 1000.0) * 1000);
+ 		String bootTime = "time: " + BOOT_TIME_FORMAT.format(dur);
+-		g.drawString(bootTime, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
++		drawString(bootTime, offX, headerY + (hoff++) * (TEXT_FONT.getSize() + 2));
+ 	}
+ 
+ 	private int drawProcessList(List processList, int px, int py,
+-		ProcessTree procTree, int y, int procH, Rectangle rect) {
++		ProcessTree procTree, int y, int procH, RenderRectangle rect) {
+ 		//Process lastProc = null;
+ 		for (Iterator i = processList.iterator(); i.hasNext();) {
+ 			Process proc = (Process) i.next();
+@@ -689,34 +732,30 @@
+ 
+ 
+ 	private void drawProcess(Process proc, int px, int py,
+-		ProcessTree procTree, int y, int procH, Rectangle rect) {
++		ProcessTree procTree, int y, int procH, RenderRectangle rect) {
+ 		int x = rect.x
+ 			+ (int) ((proc.startTime.getTime() - procTree.startTime.getTime())
+ 				* rect.width / procTree.duration);
+ 		int w = (int) ((proc.duration) * rect.width / procTree.duration);
+ 		
+-		setColor(g, PROC_COLOR_S);
+-		g.fillRect(x, y, w, procH);
+-		
+-		if (g instanceof Graphics2D) {
+-			((Graphics2D)g).setStroke(DEP_STROKE);
+-		}
+-		setColor(g, DEP_COLOR);
++		setColor(PROC_COLOR_S);
++		fillRect(x, y, w, procH);
++
++		setStroke(DEP_STROKE);
++		setColor(DEP_COLOR);
+ 		if (px != -1 && py != -1) {
+ 			if (Math.abs(px - x) < 3) {
+ 				int depOffX = 3;
+ 				int depOffY = procH / 4;
+-				g.drawLine(x, y + procH / 2, px - depOffX, y + procH / 2);
+-				g.drawLine(px - depOffX, y + procH / 2, px - depOffX, py - depOffY);
+-				g.drawLine(px - depOffX, py - depOffY, px, py - depOffY);
++				drawLine(x, y + procH / 2, px - depOffX, y + procH / 2);
++				drawLine(px - depOffX, y + procH / 2, px - depOffX, py - depOffY);
++				drawLine(px - depOffX, py - depOffY, px, py - depOffY);
+ 			} else {
+-				g.drawLine(x, y + procH / 2, px, y + procH / 2);
+-				g.drawLine(px, y + procH / 2, px, py);
++				drawLine(x, y + procH / 2, px, y + procH / 2);
++				drawLine(px, y + procH / 2, px, py);
+ 			}
+ 		}
+-		if (g instanceof Graphics2D) {
+-			((Graphics2D)g).setStroke(new BasicStroke());
+-		}
++		setStroke(SIMPLE_STROKE);
+ 
+ 		int lastTx = -1;
+ 		for (Iterator i=proc.samples.iterator(); i.hasNext(); ) {
+@@ -745,23 +784,23 @@
+ 			boolean fillRect = false;
+ 			switch (state) {
+ 				case Process.STATE_WAITING:
+-					setColor(g, PROC_COLOR_D);
++					setColor(PROC_COLOR_D);
+ 					fillRect = true;
+ 					break;
+ 				case Process.STATE_RUNNING:
+ 					int alpha = (int)(cpu * 255);
+ 					alpha = Math.max(0, Math.min(alpha, 255));
+-					Color c = new Color(PROC_COLOR_R.getRed(),
++					RenderColor c = new RenderColor(PROC_COLOR_R.getRed(),
+ 						PROC_COLOR_R.getGreen(), PROC_COLOR_R.getBlue(), alpha);
+-					setColor(g, c, PROC_COLOR_S);
++					setColor(c, PROC_COLOR_S);
+ 					fillRect = true;
+ 					break;
+ 				case Process.STATE_STOPPED:
+-					setColor(g, PROC_COLOR_T);
++					setColor(PROC_COLOR_T);
+ 					fillRect = true;
+ 					break;
+ 				case Process.STATE_ZOMBIE:
+-					setColor(g, PROC_COLOR_Z);
++					setColor(PROC_COLOR_Z);
+ 					fillRect = true;
+ 					break;
+ 				case Process.STATE_SLEEPING:
+@@ -770,18 +809,18 @@
+ 					break;
+ 			}
+ 			if (fillRect) {
+-				g.fillRect(tx, y, tw, procH);
++				fillRect(tx, y, tw, procH);
+ 			}
+ 		}
+ 		
+-		setColor(g, PROC_BORDER_COLOR);
+-		g.drawRect(x, y, w, procH);
++		setColor(PROC_BORDER_COLOR);
++		drawRect(x, y, w, procH);
+ 
+-		setColor(g, PROC_TEXT_COLOR);
+-		FontMetrics fm = g.getFontMetrics(PROC_TEXT_FONT);
++		setColor(PROC_TEXT_COLOR);
++		setFont(PROC_TEXT_FONT);
+ 		//String label = proc.pid + " " + proc.cmd + " " + proc.ppid;
+ 		String label = proc.cmd;
+-		int strW = fm.stringWidth(label);
++		int strW = stringWidth(label);
+ 		int sx = x + w / 2 - strW / 2;
+ 		if (strW + 10 > w) {
+ 			sx = x + w + 5;
+@@ -789,18 +828,17 @@
+ 		if (sx + strW > rect.x + rect.width) {
+ 			sx = x - strW - 5;
+ 		}
+-		g.drawString(label, sx, y + procH - 2);
++		drawString(label, sx, y + procH - 2);
+ 	}
+ 	
+ 	/**
+ 	 * Sets the current color.  If <code>allowAlpha</code> is not set (e.g.
+ 	 * for the EPS renderer), an opaque color is used.
+ 	 * 
+-	 * @param g        graphics context
+ 	 * @param col      the color to set
+ 	 * @param backCol  background color
+ 	 */
+-	private void setColor(Graphics g, Color col, Color backCol) {
++	private void setColor(RenderColor col, RenderColor backCol) {
+ 		if (!allowAlpha) {
+ 			int alpha = col.getAlpha();
+ 			int red = col.getRed();
+@@ -809,18 +847,41 @@
+ 			green = green + (int)((backCol.getGreen() - green) * (backCol.getGreen() - alpha)/255.0);
+ 			int blue = col.getBlue();
+ 			blue = blue + (int)((backCol.getBlue() - blue) * (backCol.getBlue() - alpha)/255.0);
+-			col = new Color(red, green, blue, 255);
++			col = new RenderColor(red, green, blue, 255);
+ 		}
+-		g.setColor(col);
++
++		setColor(col.getRed(), col.getBlue(), col.getGreen(), col.getAlpha());
+ 	}
+ 	
+-	private void setColor(Graphics g, Color col) {
+-		setColor(g, col, Color.WHITE);
++	private void setColor(RenderColor col) {
++		setColor(col, WHITE_COLOR);
+ 	}
+ 	
+-	private static Color opaque(Color col) {
+-		return new Color(col.getRed(), col.getGreen(), col.getBlue(), 255);
++	private static RenderColor opaque(RenderColor col) {
++		return new RenderColor(col.getRed(), col.getGreen(), col.getBlue(), 255);
+ 	}
++
++	protected abstract void setColor(int red, int green, int blue, int alpha);
++
++	protected abstract void drawRect(int x, int y, int width, int height);
++	
++	protected abstract void fillRect(int x, int y, int width, int height);
++	
++	protected abstract void fillArc(int x, int y, int width, int height, int startAngle, int arcAngle);
++	
++	protected abstract void fillPolygon(int xPoints[], int yPoints[], int nPoints);
++	
++	protected abstract void drawString(String str, int x, int y);
++
++	protected abstract void drawLine(int x1, int y1, int x2, int y2);
++
++	protected abstract void setStroke(RenderStroke render_stroke);
++
++	protected abstract void setFont(RenderFont font);
++
++	protected abstract int stringWidth(String str);
++	
++	protected abstract int getMaxAscent();
+ 	
+ 	/**
+ 	 * Checks whether the statistics instance contains any samples of the
+diff -urN --exclude '*.class' --exclude '*~' --exclude CVS bootchart-clean/src/org/bootchart/renderer/PNGRenderer.java bootchart/src/org/bootchart/renderer/PNGRenderer.java
+--- bootchart-clean/src/org/bootchart/renderer/PNGRenderer.java	2005-02-13 11:18:56.000000000 -0500
++++ bootchart/src/org/bootchart/renderer/PNGRenderer.java	2005-08-12 19:19:10.000000000 -0400
+@@ -32,7 +32,7 @@
+ /**
+  * PNGRenderer renders the boot chart as a PNG image.
+  */
+-public class PNGRenderer extends ImageRenderer {
++public class PNGRenderer extends GraphicsRenderer {
+ 	private static final Logger log = Logger.getLogger(PNGRenderer.class.getName());
+ 	
+ 	/*
